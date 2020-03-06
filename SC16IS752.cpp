@@ -35,7 +35,7 @@
 #endif // ifdef __AVR__
 
 
-SC16IS752::SC16IS752(uint8_t prtcl, uint8_t addr_sspin)
+SC16IS752::SC16IS752(uint8_t prtcl, uint8_t addr_sspin) : initialized(false)
 {
   protocol = prtcl;
 
@@ -51,24 +51,28 @@ SC16IS752::SC16IS752(uint8_t prtcl, uint8_t addr_sspin)
 
 void SC16IS752::begin(uint32_t baud_A, uint32_t baud_B)
 {
-  if (protocol == SC16IS750_PROTOCOL_I2C) {
-    WIRE.begin();
-  } else {
-    ::pinMode(device_address_sspin, OUTPUT);
-    ::digitalWrite(device_address_sspin, HIGH);
-    SPI.setDataMode(SPI_MODE0);
-    SPI.setClockDivider(SPI_CLOCK_DIV4);
-    SPI.setBitOrder(MSBFIRST);
-    SPI.begin();
+  Initialize(); // Force initialize, since we're initializing both channels at once
+  beginA(baud_A);
+  beginB(baud_B);
+}
 
-    // SPI.setClockDivider(32);
+void SC16IS752::beginA(uint32_t baud_A)
+{
+  if (!initialized) {
+    Initialize();
   }
-  ResetDevice();
   FIFOEnable(SC16IS752_CHANNEL_A, 1);
-  FIFOEnable(SC16IS752_CHANNEL_B, 1);
   SetBaudrate(SC16IS752_CHANNEL_A, baud_A);
-  SetBaudrate(SC16IS752_CHANNEL_B, baud_B);
   SetLine(SC16IS752_CHANNEL_A, 8, 0, 1);
+}
+
+void SC16IS752::beginB(uint32_t baud_B)
+{
+  if (!initialized) {
+    Initialize();
+  }
+  FIFOEnable(SC16IS752_CHANNEL_B, 1);
+  SetBaudrate(SC16IS752_CHANNEL_B, baud_B);
   SetLine(SC16IS752_CHANNEL_B, 8, 0, 1);
 }
 
@@ -81,15 +85,15 @@ int SC16IS752::read(uint8_t channel)
 {
   if (peek_flag == 0) {
     return ReadByte(channel);
-  } else {
-    peek_flag = 0;
-    return peek_buf;
   }
+  peek_flag = 0;
+  return peek_buf;
 }
 
 size_t SC16IS752::write(uint8_t channel, uint8_t val)
 {
   WriteByte(channel, val);
+  return 1;
 }
 
 void SC16IS752::pinMode(uint8_t pin, uint8_t i_o)
@@ -109,7 +113,7 @@ uint8_t SC16IS752::digitalRead(uint8_t pin)
 
 uint8_t SC16IS752::ReadRegister(uint8_t channel, uint8_t reg_addr)
 {
-  uint8_t result;
+  uint8_t result = 0;
 
   if (protocol == SC16IS750_PROTOCOL_I2C) { // register read operation via I2C
     WIRE.beginTransmission(device_address_sspin);
@@ -161,6 +165,24 @@ void SC16IS752::WriteRegister(uint8_t channel, uint8_t reg_addr, uint8_t val)
     delayMicroseconds(10);
     ::digitalWrite(device_address_sspin, HIGH);
   }
+}
+
+void SC16IS752::Initialize()
+{
+  if (protocol == SC16IS750_PROTOCOL_I2C) {
+    WIRE.begin();
+  } else {
+    ::pinMode(device_address_sspin, OUTPUT);
+    ::digitalWrite(device_address_sspin, HIGH);
+    SPI.setDataMode(SPI_MODE0);
+    SPI.setClockDivider(SPI_CLOCK_DIV4);
+    SPI.setBitOrder(MSBFIRST);
+    SPI.begin();
+
+    // SPI.setClockDivider(32);
+  }
+  ResetDevice();
+  initialized = true;
 }
 
 int16_t SC16IS752::SetBaudrate(uint8_t channel, uint32_t baudrate) // return error of baudrate parts per thousand
@@ -297,7 +319,7 @@ uint8_t SC16IS752::GPIOGetPinState(uint8_t pin_number)
 
   temp_iostate = ReadRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOSTATE);
 
-  if (temp_iostate & (0x01 << pin_number) == 0) {
+  if ((temp_iostate & (0x01 << pin_number)) == 0) {
     return 0;
   }
   return 1;
