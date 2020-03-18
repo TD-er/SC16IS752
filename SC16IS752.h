@@ -101,7 +101,7 @@
 #define         SC16IS750_CRYSTCAL_FREQ (1843200UL)
 
 // #define     SC16IS750_CRYSTCAL_FREQ (16000000UL)
-#define     SC16IS750_DEBUG_PRINT   (1)
+//#define     SC16IS750_DEBUG_PRINT   (1)
 #define     SC16IS750_PROTOCOL_I2C  (0)
 #define     SC16IS750_PROTOCOL_SPI  (1)
 
@@ -146,8 +146,9 @@ public:
 
 private:
 
-  int peek_buf      = -1;
-  uint8_t peek_flag = 0;
+  int peek_buf[2] = {-1, -1};
+  uint8_t peek_flag[2] = {0, 0};
+  uint8_t fifo_available[2] = {0, 0};
   uint8_t device_address_sspin;
   uint8_t protocol;
   bool initialized = false;

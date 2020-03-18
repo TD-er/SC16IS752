@@ -40,11 +40,18 @@ SC16IS752::SC16IS752(uint8_t prtcl, uint8_t addr_sspin) : initialized(false)
   protocol = prtcl;
 
   if (protocol == SC16IS750_PROTOCOL_I2C) {
-    device_address_sspin = (addr_sspin >> 1);
+    // Datasheet uses extra read/write bit to describe I2C address.
+    // Actual address in communication has one bit shifted.
+    if ((addr_sspin >= 0x48) && (addr_sspin <= 0x57)) {
+      device_address_sspin = addr_sspin;
+    } else {
+      device_address_sspin = (addr_sspin >> 1);
+    }
   } else {
     device_address_sspin = addr_sspin;
   }
-  peek_flag = 0;
+  peek_flag[SC16IS752_CHANNEL_A] = 0;
+  peek_flag[SC16IS752_CHANNEL_B] = 0;
 
   //	timeout = 1000;
 }
@@ -83,11 +90,11 @@ int SC16IS752::available(uint8_t channel)
 
 int SC16IS752::read(uint8_t channel)
 {
-  if (peek_flag == 0) {
+  if (peek_flag[channel] == 0) {
     return ReadByte(channel);
   }
-  peek_flag = 0;
-  return peek_buf;
+  peek_flag[channel] = 0;
+  return peek_buf[channel];
 }
 
 size_t SC16IS752::write(uint8_t channel, uint8_t val)
@@ -476,8 +483,10 @@ uint8_t SC16IS752::FIFOAvailableData(uint8_t channel)
   Serial.print("=====Available data:");
   Serial.println(ReadRegister(channel, SC16IS750_REG_RXLVL), DEC);
 #endif // ifdef  SC16IS750_DEBUG_PRINT
-  return ReadRegister(channel, SC16IS750_REG_RXLVL);
-
+  if (fifo_available[channel] == 0) {
+    fifo_available[channel] = ReadRegister(channel, SC16IS750_REG_RXLVL);
+  }
+  return fifo_available[channel];
   //    return ReadRegister(channel, SC16IS750_REG_LSR) & 0x01;
 }
 
@@ -522,6 +531,9 @@ int SC16IS752::ReadByte(uint8_t channel)
 #ifdef  SC16IS750_DEBUG_PRINT
     Serial.println("***********Data available***********");
 #endif // ifdef  SC16IS750_DEBUG_PRINT
+    if (fifo_available[channel] > 0) {
+      --fifo_available[channel];
+    }
     val = ReadRegister(channel, SC16IS750_REG_RHR);
     return val;
   }
@@ -616,13 +628,13 @@ void SC16IS752::flush(uint8_t channel)
 
 int SC16IS752::peek(uint8_t channel)
 {
-  if (peek_flag == 0) {
-    peek_buf = ReadByte(channel);
+  if (peek_flag[channel] == 0) {
+    peek_buf[channel] = ReadByte(channel);
 
-    if (peek_buf >= 0) {
-      peek_flag = 1;
+    if (peek_buf[channel] >= 0) {
+      peek_flag[channel] = 1;
     }
   }
 
-  return peek_buf;
+  return peek_buf[channel];
 }
