@@ -25,6 +25,16 @@
 #include <SPI.h>
 #include <Wire.h>
 
+#ifdef __AVR__
+ # define WIRE Wire
+#elif ESP8266 // ESP8266
+ # define WIRE Wire
+#elif ESP32 // ESP8266
+ # define WIRE Wire
+#else // Arduino Due
+ # define WIRE Wire1
+#endif // ifdef __AVR__
+
 
 SC16IS752::SC16IS752(uint8_t prtcl, uint8_t addr_sspin) : initialized(false)
 {
@@ -114,11 +124,11 @@ uint8_t SC16IS752::ReadRegister(uint8_t channel, uint8_t reg_addr)
   uint8_t result = 0;
 
   if (protocol == SC16IS750_PROTOCOL_I2C) { // register read operation via I2C
-    Wire.beginTransmission(device_address_sspin);
-    Wire.write((reg_addr << 3 | channel << 1));
-    Wire.endTransmission(0);
-    Wire.requestFrom(device_address_sspin, (uint8_t)1);
-    result = Wire.read();
+    WIRE.beginTransmission(device_address_sspin);
+    WIRE.write((reg_addr << 3 | channel << 1));
+    WIRE.endTransmission(0);
+    WIRE.requestFrom(device_address_sspin, (uint8_t)1);
+    result = WIRE.read();
   } else if (protocol == SC16IS750_PROTOCOL_SPI) { // register read operation via SPI
     ::digitalWrite(device_address_sspin, LOW);
     delayMicroseconds(10);
@@ -151,10 +161,10 @@ void SC16IS752::WriteRegister(uint8_t channel, uint8_t reg_addr, uint8_t val)
 #endif // ifdef  SC16IS750_DEBUG_PRINT
 
   if (protocol == SC16IS750_PROTOCOL_I2C) { // register read operation via I2C
-    Wire.beginTransmission(device_address_sspin);
-    Wire.write((reg_addr << 3 | channel << 1));
-    Wire.write(val);
-    Wire.endTransmission(1);
+    WIRE.beginTransmission(device_address_sspin);
+    WIRE.write((reg_addr << 3 | channel << 1));
+    WIRE.write(val);
+    WIRE.endTransmission(1);
   } else {
     ::digitalWrite(device_address_sspin, LOW);
     delayMicroseconds(10);
@@ -168,7 +178,7 @@ void SC16IS752::WriteRegister(uint8_t channel, uint8_t reg_addr, uint8_t val)
 void SC16IS752::Initialize()
 {
   if (protocol == SC16IS750_PROTOCOL_I2C) {
-    Wire.begin();
+    WIRE.begin();
   } else {
     ::pinMode(device_address_sspin, OUTPUT);
     ::digitalWrite(device_address_sspin, HIGH);
@@ -602,34 +612,32 @@ uint8_t SC16IS752::ping()
    }
  */
  
-   size_t SC16IS752::readBytes(uint8_t channel, uint8_t *buffer, size_t length)
-   {
-        size_t count=0;
-        int16_t tmp;
+size_t SC16IS752::readBytes(uint8_t channel, uint8_t *buffer, size_t length)
+{
+  size_t count=0;
+  int16_t tmp;
 
-        while (count < length) {
-                tmp = ReadByte(channel);
-                if (tmp < 0) {
-                        break;
-                }
-				*buffer++ = tmp;
-                count++;
-        }
-
-        return count;
-   }
+  while (count < length) {
+	tmp = ReadByte(channel);
+	if (tmp < 0) {
+			break;
+	}
+	*buffer++ = tmp;
+	count++;
+  }
+  return count;
+}
    
-   String SC16IS752::readStringUntil(uint8_t channel, char terminator)
-   {
-		String ret;
-        int c = ReadByte(channel);
-		while(c >= 0 && c != terminator) {
-			ret += (char) c;
-			c = ReadByte(channel);
-		}
-
-        return ret;
-   }
+String SC16IS752::readStringUntil(uint8_t channel, char terminator)
+{
+  String ret;
+  int c = ReadByte(channel);
+  while(c >= 0 && c != terminator) {
+	ret += (char) c;
+	c = ReadByte(channel);
+  }
+  return ret;
+}
    
 /*
    int16_t SC16IS752::readwithtimeout()
