@@ -26,15 +26,6 @@
 #include <Wire.h>
 
 
-#ifdef __AVR__
- # define WIRE Wire
-#elif ESP8266 // ESP8266
- # define WIRE Wire
-#else // Arduino Due
- # define WIRE Wire1
-#endif // ifdef __AVR__
-
-
 SC16IS752::SC16IS752(uint8_t prtcl, uint8_t addr_sspin) : initialized(false)
 {
   protocol = prtcl;
@@ -123,11 +114,11 @@ uint8_t SC16IS752::ReadRegister(uint8_t channel, uint8_t reg_addr)
   uint8_t result = 0;
 
   if (protocol == SC16IS750_PROTOCOL_I2C) { // register read operation via I2C
-    WIRE.beginTransmission(device_address_sspin);
-    WIRE.write((reg_addr << 3 | channel << 1));
-    WIRE.endTransmission(0);
-    WIRE.requestFrom(device_address_sspin, (uint8_t)1);
-    result = WIRE.read();
+    Wire.beginTransmission(device_address_sspin);
+    Wire.write((reg_addr << 3 | channel << 1));
+    Wire.endTransmission(0);
+    Wire.requestFrom(device_address_sspin, (uint8_t)1);
+    result = Wire.read();
   } else if (protocol == SC16IS750_PROTOCOL_SPI) { // register read operation via SPI
     ::digitalWrite(device_address_sspin, LOW);
     delayMicroseconds(10);
@@ -160,10 +151,10 @@ void SC16IS752::WriteRegister(uint8_t channel, uint8_t reg_addr, uint8_t val)
 #endif // ifdef  SC16IS750_DEBUG_PRINT
 
   if (protocol == SC16IS750_PROTOCOL_I2C) { // register read operation via I2C
-    WIRE.beginTransmission(device_address_sspin);
-    WIRE.write((reg_addr << 3 | channel << 1));
-    WIRE.write(val);
-    WIRE.endTransmission(1);
+    Wire.beginTransmission(device_address_sspin);
+    Wire.write((reg_addr << 3 | channel << 1));
+    Wire.write(val);
+    Wire.endTransmission(1);
   } else {
     ::digitalWrite(device_address_sspin, LOW);
     delayMicroseconds(10);
@@ -177,7 +168,7 @@ void SC16IS752::WriteRegister(uint8_t channel, uint8_t reg_addr, uint8_t val)
 void SC16IS752::Initialize()
 {
   if (protocol == SC16IS750_PROTOCOL_I2C) {
-    WIRE.begin();
+    Wire.begin();
   } else {
     ::pinMode(device_address_sspin, OUTPUT);
     ::digitalWrite(device_address_sspin, HIGH);
@@ -347,9 +338,31 @@ void SC16IS752::GPIOSetPortState(uint8_t port_state)
   WriteRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOSTATE, port_state);
 }
 
-void SC16IS752::SetPinInterrupt(uint8_t io_int_ena)
+void SC16IS752::SetPinInterrupt(uint8_t pin_number, bool int_ena)
+{ 
+  uint8_t temp_iostate;
+
+  temp_iostate = ReadRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOINTENA);
+
+  if (int_ena == 1) {
+    temp_iostate |= (0x01 << pin_number);
+  } else {
+    temp_iostate &= (uint8_t) ~(0x01 << pin_number);
+  }
+
+  WriteRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOINTENA, temp_iostate);
+}
+
+uint8_t SC16IS752::GetPinInterrupt(uint8_t pin_number)
 {
-  WriteRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOINTENA, io_int_ena);
+  uint8_t temp_iostate;
+
+  temp_iostate = ReadRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOINTENA);
+
+  if ((temp_iostate & (0x01 << pin_number)) == 0) {
+    return 0;
+  }
+  return 1;
 }
 
 void SC16IS752::ResetDevice()
@@ -587,24 +600,38 @@ uint8_t SC16IS752::ping()
    {
         timeout = time_out;
    }
-
-   size_t SC16IS752::readBytes(char *buffer, size_t length)
+ */
+ 
+   size_t SC16IS752::readBytes(uint8_t channel, uint8_t *buffer, size_t length)
    {
         size_t count=0;
         int16_t tmp;
 
         while (count < length) {
-                tmp = readwithtimeout();
+                tmp = ReadByte(channel);
                 if (tmp < 0) {
                         break;
                 }
- * buffer++ = (char)tmp;
+				*buffer++ = tmp;
                 count++;
         }
 
         return count;
    }
+   
+   String SC16IS752::readStringUntil(uint8_t channel, char terminator)
+   {
+		String ret;
+        int c = ReadByte(channel);
+		while(c >= 0 && c != terminator) {
+			ret += (char) c;
+			c = ReadByte(channel);
+		}
 
+        return ret;
+   }
+   
+/*
    int16_t SC16IS752::readwithtimeout()
    {
    int16_t tmp;
