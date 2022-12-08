@@ -133,12 +133,14 @@ public:
   uint8_t ping();
 
   //	void setTimeout(uint32_t);
-  //	size_t readBytes(char *buffer, size_t length);
+  size_t readBytes(uint8_t channel, uint8_t *buffer, size_t length);
+  String readStringUntil(uint8_t channel, char terminator);
   int     peek(uint8_t channel);
   void    flush(uint8_t channel);
   uint8_t GPIOGetPortState(void);
   uint8_t InterruptPendingTest(uint8_t channel);
-  void    SetPinInterrupt(uint8_t io_int_ena);
+  void    SetPinInterrupt(uint8_t pin_number, bool int_ena);
+  uint8_t GetPinInterrupt(uint8_t pin_number);
   void    InterruptControl(uint8_t channel,
                            uint8_t int_ena);
   void    ModemPin(uint8_t gpio); // gpio == 0, gpio[7:4] are modem pins, gpio == 1 gpio[7:4] are gpios

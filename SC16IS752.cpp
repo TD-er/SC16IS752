@@ -25,10 +25,11 @@
 #include <SPI.h>
 #include <Wire.h>
 
-
 #ifdef __AVR__
  # define WIRE Wire
 #elif defined(ESP8266) || defined(ESP32) // ESP8266/ESP32
+ # define WIRE Wire
+#elif ESP32 // ESP8266
  # define WIRE Wire
 #else // Arduino Due
  # define WIRE Wire1
@@ -347,9 +348,31 @@ void SC16IS752::GPIOSetPortState(uint8_t port_state)
   WriteRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOSTATE, port_state);
 }
 
-void SC16IS752::SetPinInterrupt(uint8_t io_int_ena)
+void SC16IS752::SetPinInterrupt(uint8_t pin_number, bool int_ena)
+{ 
+  uint8_t temp_iostate;
+
+  temp_iostate = ReadRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOINTENA);
+
+  if (int_ena == 1) {
+    temp_iostate |= (0x01 << pin_number);
+  } else {
+    temp_iostate &= (uint8_t) ~(0x01 << pin_number);
+  }
+
+  WriteRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOINTENA, temp_iostate);
+}
+
+uint8_t SC16IS752::GetPinInterrupt(uint8_t pin_number)
 {
-  WriteRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOINTENA, io_int_ena);
+  uint8_t temp_iostate;
+
+  temp_iostate = ReadRegister(SC16IS752_CHANNEL_BOTH, SC16IS750_REG_IOINTENA);
+
+  if ((temp_iostate & (0x01 << pin_number)) == 0) {
+    return 0;
+  }
+  return 1;
 }
 
 void SC16IS752::ResetDevice()
@@ -587,24 +610,36 @@ uint8_t SC16IS752::ping()
    {
         timeout = time_out;
    }
+ */
+ 
+size_t SC16IS752::readBytes(uint8_t channel, uint8_t *buffer, size_t length)
+{
+  size_t count=0;
+  int16_t tmp;
 
-   size_t SC16IS752::readBytes(char *buffer, size_t length)
-   {
-        size_t count=0;
-        int16_t tmp;
-
-        while (count < length) {
-                tmp = readwithtimeout();
-                if (tmp < 0) {
-                        break;
-                }
- * buffer++ = (char)tmp;
-                count++;
-        }
-
-        return count;
-   }
-
+  while (count < length) {
+	tmp = ReadByte(channel);
+	if (tmp < 0) {
+			break;
+	}
+	*buffer++ = tmp;
+	count++;
+  }
+  return count;
+}
+   
+String SC16IS752::readStringUntil(uint8_t channel, char terminator)
+{
+  String ret;
+  int c = ReadByte(channel);
+  while(c >= 0 && c != terminator) {
+	ret += (char) c;
+	c = ReadByte(channel);
+  }
+  return ret;
+}
+   
+/*
    int16_t SC16IS752::readwithtimeout()
    {
    int16_t tmp;
